@@ -3,3 +3,5 @@ build/
 
 # Local set up that runs vcvarsall.bat for my machine
 setup.bat
+
+.vs/
