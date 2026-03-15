@@ -2,5 +2,5 @@
 
 mkdir build &:: create a build folder
 pushd build
-cl -Zi ..\src\win32_game.cpp user32.lib &:: need to include user32.lib import library
+cl -Zi ..\src\win32_game.cpp user32.lib Gdi32.lib &:: need to include user32.lib import library
 popd
