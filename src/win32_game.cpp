@@ -1,23 +1,20 @@
 // windows.h has many of the functions needed to get running on Windows
 #include <windows.h>
 
-// WNDPROC MainWindowCallback;
-
 // Static has 3 different meanings. Re-define static 3 different ways
 #define INTERNAL static
 #define LOCAL_PERSIST static
 #define GLOBAL_VARIABLE static
 
-// TODO: This is a global variable for now
-
 /*
-  Using static for global variables always initializes it to 0
+Using static for global variables always initializes it to 0
 
-  ```static bool Running = 0; == static bool Running;```
+```static bool Running = 0; == static bool Running;```
 
-  These two statements are identical.
+These two statements are identical.
 */
 
+// TODO: This is a global variable for now
 GLOBAL_VARIABLE bool Running;
 
 LRESULT CALLBACK MainWindowCallback(
@@ -41,7 +38,6 @@ LRESULT CALLBACK MainWindowCallback(
   {
     // TODO: Handle this with a message to the user (E.g., "Are you sure you want to quit?")
     Running = false;
-    // OutputDebugStringA("WM_CLOSE\n");
   } break;
 
   case WM_ACTIVATEAPP:
@@ -53,7 +49,6 @@ LRESULT CALLBACK MainWindowCallback(
   {
     // TODO: Handle this as an error - recreate window?
     Running = false;
-    // OutputDebugStringA("WM_DESTROY\n");
   } break;
 
   case WM_PAINT:
@@ -77,7 +72,6 @@ LRESULT CALLBACK MainWindowCallback(
   } break;
   default:
   {
-    // OutputDebugStringA("default\n");
     Result = DefWindowProc(Window, Message, WParam, LParam);
   } break;
   }
