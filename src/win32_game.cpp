@@ -3,6 +3,23 @@
 
 // WNDPROC MainWindowCallback;
 
+// Static has 3 different meanings. Re-define static 3 different ways
+#define INTERNAL static
+#define LOCAL_PERSIST static
+#define GLOBAL_VARIABLE static
+
+// TODO: This is a global variable for now
+
+/*
+  Using static for global variables always initializes it to 0
+
+  ```static bool Running = 0; == static bool Running;```
+
+  These two statements are identical.
+*/
+
+GLOBAL_VARIABLE bool Running;
+
 LRESULT CALLBACK MainWindowCallback(
   HWND Window,
   UINT Message,
@@ -20,19 +37,23 @@ LRESULT CALLBACK MainWindowCallback(
     OutputDebugStringA("WM_SIZE\n");
   } break;
 
-  case WM_DESTROY:
-  {
-    OutputDebugStringA("WM_DESTROY\n");
-  } break;
-
   case WM_CLOSE:
   {
-    OutputDebugStringA("WM_CLOSE\n");
+    // TODO: Handle this with a message to the user (E.g., "Are you sure you want to quit?")
+    Running = false;
+    // OutputDebugStringA("WM_CLOSE\n");
   } break;
 
   case WM_ACTIVATEAPP:
   {
     OutputDebugStringA("WM_ACTIVATEAPP\n");
+  } break;
+
+  case WM_DESTROY:
+  {
+    // TODO: Handle this as an error - recreate window?
+    Running = false;
+    // OutputDebugStringA("WM_DESTROY\n");
   } break;
 
   case WM_PAINT:
@@ -43,7 +64,8 @@ LRESULT CALLBACK MainWindowCallback(
     int Y = Painter.rcPaint.top;
     LONG Height = Painter.rcPaint.bottom - Painter.rcPaint.top;
     LONG Width = Painter.rcPaint.right - Painter.rcPaint.left;
-    static DWORD Opperation = WHITENESS;
+    // Locally persisted variables keep the value it's been assigned rather than resetting to the default every time.
+    LOCAL_PERSIST DWORD Opperation = WHITENESS;
     PatBlt(DeviceContext, X, Y, Width, Height, Opperation);
     if (Opperation == WHITENESS) {
       Opperation = BLACKNESS;
@@ -98,8 +120,8 @@ int WINAPI WinMain(
     );
 
     if (WindowHandle) {
-      // ;; means blank feilds. It's an infinite loop
-      for (;;) {
+      Running = true;
+      while (Running) {
         MSG Message;
         BOOL MessageResult = GetMessage(&Message, 0, 0, 0);
         if (MessageResult > 0) {
