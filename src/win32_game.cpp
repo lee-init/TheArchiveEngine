@@ -1,5 +1,6 @@
 // windows.h has many of the functions needed to get running on Windows
 #include <windows.h>
+#include <stdint.h>
 
 // Static has 3 different meanings. Re-define static 3 different ways
 #define INTERNAL static
@@ -19,30 +20,55 @@ GLOBAL_VARIABLE bool Running;
 GLOBAL_VARIABLE BITMAPINFO BitmapInfo;
 // void* - A pointer to nothing. Means we're pointing to the memory address of a particular value but we don't know what type it is. 
 // Can be cast to a type later
-GLOBAL_VARIABLE void* BitmapMem;
-GLOBAL_VARIABLE HBITMAP BitmapHandle;
-GLOBAL_VARIABLE HDC BitmapDeviceContext;
+GLOBAL_VARIABLE void* BitmapMemory;
+GLOBAL_VARIABLE int BitmapWidth;
+GLOBAL_VARIABLE int BitmapHeight;
+GLOBAL_VARIABLE int BytesPerPixel = 4;
 
-INTERNAL void Win32ResizeDIBSection(long Width, long Height) {
+typedef uint8_t uint8;
+typedef uint32_t uint32;
+
+INTERNAL void RenderWeirdGradient(int BlueOffset, int GreenOffset) {
+
+  int Width = BitmapWidth;
+  int Height = BitmapHeight;
+
+  int Stride = Width * BytesPerPixel;
+  uint8* Row = (uint8*)BitmapMemory;
+  for (int Y = 0; Y < BitmapHeight; ++Y) {
+    uint32* Pixel = (uint32*)Row;
+    for (int X = 0; X < BitmapWidth; ++X) {
+      // Need to point to the memory pointed to by the *Pixel pointer
+
+      uint8 Blue = (X + BlueOffset);
+      uint8 Green = (Y + GreenOffset);
+      uint8 Red = 155;
+      *Pixel++ = ((Red << 16) | (Green << 8) | Blue);
+
+    }
+    Row += Stride;
+
+  }
+}
+
+INTERNAL void Win32ResizeDIBSection(int Width, int Height) {
 
   // TODO: Bulletproof this
   // Maybe don't free memory used first, free after, then free first if that fails.
 
-  // TODO: Free our DIBSection
-  if (BitmapHandle) {
-    DeleteObject(BitmapHandle);
-  }
-  if (!BitmapDeviceContext) {
-    // TODO - May need to free this: Context, if someone disconnects a monitor and plugs a new one in with a different resolution
-    BitmapDeviceContext = CreateCompatibleDC(0);
+  if (BitmapMemory) {
+    VirtualFree(BitmapMemory, 0, MEM_RELEASE);
   }
 
-  // The number of bites requred by the structure - we use sizeof() to find the size of the structure itself
+  BitmapWidth = Width;
+  BitmapHeight = Height;
+
+  // The number of bites requred by the structure - we use sizeof() to find the size of the stdructure itself
   BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
   // Width of the bitmap in pixels
-  BitmapInfo.bmiHeader.biWidth = Width;
+  BitmapInfo.bmiHeader.biWidth = BitmapWidth;
   // Height of the bitmap in pixels
-  BitmapInfo.bmiHeader.biHeight = Height;
+  BitmapInfo.bmiHeader.biHeight = -BitmapHeight;
   // Doesn't matter what this is, it has to have a value of 1
   BitmapInfo.bmiHeader.biPlanes = 1;
   // bits per pizel (bpp) - values are 1, 4, 8, 16, 24, 32. 32 is true colour with optional alpha (4.29 billion colours). Setting 32 will set DWORD aligned which is... something idk
@@ -50,23 +76,26 @@ INTERNAL void Win32ResizeDIBSection(long Width, long Height) {
   // We don't want to compress at all, uncompressed means we can write to and blt to is as fast as possible. BI_RGB is for uncompressed RGB.
   BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-  BitmapHandle = CreateDIBSection(
-    BitmapDeviceContext,
-    &BitmapInfo,
-    DIB_RGB_COLORS,
-    &BitmapMem,
-    0,
-    0
-  );
+  // This value needs to be 
+  int BitmapMemorySize = (BitmapWidth * BitmapHeight) * BytesPerPixel;
+  BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+
+  RenderWeirdGradient(0, 0);
 
 }
 
-INTERNAL void Win32UpdateWindow(HDC DeviceContext, int X, int Y, int Width, int Height) {
+INTERNAL void Win32UpdateWindow(HDC DeviceContext, RECT* ClientRect, int X, int Y, int Width, int Height) {
+
+  int WindowWidth = ClientRect->right - ClientRect->left;
+  int WindowHeight = ClientRect->bottom - ClientRect->top;
 
   StretchDIBits(DeviceContext,
-    X, Y, Width, Height,
-    X, Y, Width, Height,
-    BitmapMem,
+    // X, Y, Width, Height,
+    // X, Y, Width, Height,
+    // Dirty Rectangle - Fill whole window
+    0, 0, WindowWidth, WindowHeight,
+    0, 0, BitmapWidth, BitmapHeight,
+    BitmapMemory,
     &BitmapInfo,
     DIB_RGB_COLORS,
     SRCCOPY);
@@ -120,10 +149,16 @@ LRESULT CALLBACK Win32MainWindowCallback(
     int Y = Painter.rcPaint.top;
     int Width = Painter.rcPaint.right - Painter.rcPaint.left;
     int Height = Painter.rcPaint.bottom - Painter.rcPaint.top;
-    Win32UpdateWindow(DeviceContext, X, Y, Width, Height);
+
+    RECT ClientRect;
+    GetClientRect(Window, &ClientRect);
+
+    Win32UpdateWindow(DeviceContext, &ClientRect, X, Y, Width, Height);
     // Locally persisted variables keep the value it's been assigned rather than resetting to the default every time.
     LOCAL_PERSIST DWORD Opperation = WHITENESS;
-    PatBlt(DeviceContext, X, Y, Width, Height, Opperation);
+
+    // Remember to remove PatBlt. This is overwriting the pixels with Whiteness
+    // PatBlt(DeviceContext, X, Y, Width, Height, Opperation);
     if (Opperation == WHITENESS) {
       Opperation = BLACKNESS;
     }
@@ -160,7 +195,7 @@ int WINAPI WinMain(
   WindowClass.lpszClassName = "TheArchivesWindowClass";
 
   if (RegisterClass(&WindowClass)) {
-    HWND WindowHandle = CreateWindowEx(
+    HWND Window = CreateWindowEx(
       0,
       WindowClass.lpszClassName,
       "The Archives",
@@ -175,18 +210,38 @@ int WINAPI WinMain(
       0
     );
 
-    if (WindowHandle) {
+    if (Window) {
+      int XOffset = 0;
+      int YOffset = 0;
       Running = true;
       while (Running) {
+
         MSG Message;
-        BOOL MessageResult = GetMessage(&Message, 0, 0, 0);
-        if (MessageResult > 0) {
+        while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
+
+          // Handle quit message
+          if (Message.message == WM_QUIT) {
+            Running = false;
+          }
+
           TranslateMessage(&Message);
           DispatchMessage(&Message);
+
         }
-        else {
-          break;
-        }
+
+        RenderWeirdGradient(XOffset, YOffset);
+
+        HDC DeviceContext = GetDC(Window);
+        RECT ClientRect;
+        GetClientRect(Window, &ClientRect);
+        int WindowWidth = ClientRect.right - ClientRect.left;
+        int WindowHeight = ClientRect.bottom - ClientRect.top;
+        Win32UpdateWindow(DeviceContext, &ClientRect, 0, 0, WindowWidth, WindowHeight);
+        ReleaseDC(Window, DeviceContext);
+
+        ++XOffset;
+
+
       }
     }
     else {
