@@ -8,5 +8,9 @@ Attempting to create a game engine and a game to go along with it
 2. Run build.bat. This compiles the translation units (.cpp file) into objects (.obj) and links those object to create a .exe file
 3. Run win32_game.exe. At
 
-### Note: Running setup.bat is not permanent. If you close command prompt you will need to run setup.bat again
+### Notes: 
+
+  This will only build and run on a Windows machine.
+
+  Running setup.bat is not permanent. If you close command prompt you will need to run setup.bat again.
 
